@@ -1,6 +1,93 @@
 import Stripe from "stripe";
 
 // Initialize Stripe with the secret key from the environment variables.
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Helper function to calculate the total amount in the smallest currency unit (e.g., piasters or cents).
+const calculateOrderAmount = (items) => {
+  // Stripe requires amount in the smallest currency unit (e.g., piasters for EGP).
+  const totalPriceInEGP = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  
+  // Convert EGP to piasters (1 EGP = 100 piasters) and round to the nearest integer.
+  return Math.round(totalPriceInEGP * 100);
+};
+
+
+export default async function handler(req, res) {
+  // Only allow POST requests for creating a payment intent
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).end("Method Not Allowed");
+  }
+
+  try {
+    const { items, email, mobile } = req.body;
+
+    // Validate incoming data
+    if (!items || !email || !mobile || items.length === 0) {
+      return res.status(400).json({ 
+        message: "Missing required fields (items, email, or mobile) or empty cart." 
+      });
+    }
+
+    let amount = calculateOrderAmount(items);
+    const currency = "egp"; // Based on your existing stripe.js file
+    
+    // --- TEMPORARY DEBUGGING BLOCK ---
+    // Stripe minimum charge for EGP is 3 EGP (300 piasters). 
+    // If the amount is less than 300, or zero (which means items.price * item.quantity was 0),
+    // it will fail. We set a temporary floor for testing.
+    if (amount < 300) {
+        console.log(`[Stripe PI] Calculated amount (${amount}) is too low. Setting to 300 for test.`);
+        amount = 300; // Force to minimum charge amount for EGP (3.00 EGP)
+    }
+    // ---------------------------------
+    
+    // --- DEBUGGING LINE ---
+    console.log(`[Stripe PI] Attempting to create PaymentIntent for: ${amount} ${currency} (EGP in Piasters)`);
+    // ----------------------
+
+    // 1. Create a PaymentIntent. This is the core resource for mobile payments.
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: currency,
+      // Setting payment_method_types is highly recommended for security and compatibility
+      payment_method_types: ['card'], 
+      
+      // Optional: Add metadata for tracking in the Stripe Dashboard
+      metadata: {
+        customer_email: email,
+        customer_mobile: mobile,
+      },
+      // Optional: Set a customer email for pre-filling card fields (recommended)
+      receipt_email: email,
+    });
+    
+    console.log(`[Stripe PI] Success. Client Secret: ${paymentIntent.client_secret.substring(0, 20)}...`);
+
+    // 2. Return the Payment Intent's client secret to the mobile app.
+    res.status(200).json({
+      paymentIntentClientSecret: paymentIntent.client_secret,
+    });
+
+  } catch (err) {
+    console.error("Stripe Payment Intent Error:", err.message);
+    // Be careful not to expose sensitive internal error details to the client
+    res.status(err.statusCode || 500).json({ 
+      error: "Failed to create Payment Intent",
+      // IMPORTANT: Share the actual error message from Stripe to the client 
+      // during development (you should remove this in production).
+      message: err.message 
+    });
+  }
+}
+
+
+
+/*
+import Stripe from "stripe";
+
+// Initialize Stripe with the secret key from the environment variables.
 // This key is safely loaded by Next.js from .env.local on the server side.
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -70,3 +157,4 @@ export default async function handler(req, res) {
     });
   }
 }
+*/
