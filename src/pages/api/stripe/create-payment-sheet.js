@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       metadata: {
         email,
         mobile,
-        order_items: JSON.stringify(items),
+        Order_items: JSON.stringify(items.map(item => item.displayName || item.name.en || item.name)),
       },
       receipt_email: email,
     });
