@@ -49,7 +49,7 @@ const Cart = () => {
 
             localStorage.setItem("cartBackup", JSON.stringify(cartItems));
             
-            const response = await fetch("/api/stripe", {
+            const response = await fetch("/api/stripe/stripe", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

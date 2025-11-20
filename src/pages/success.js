@@ -23,7 +23,7 @@ const Success = () => {
       try {
 
          // 1️⃣ Fetch Stripe session details
-        const res = await fetch(`/api/stripe-session?session_id=${session_id}`);
+        const res = await fetch(`/api/stripe/stripe-session?session_id=${session_id}`);
         const session = await res.json();
 
         // 2️⃣ Save the order to MongoDB
